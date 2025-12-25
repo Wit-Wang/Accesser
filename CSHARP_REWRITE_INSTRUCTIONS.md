@@ -298,12 +298,26 @@ public class ConfigurationManager
         return baseRules;
     }
     
-    private static AppConfig MergeConfigurations(AppConfig base, AppConfig overlay)
+    private static AppConfig MergeConfigurations(AppConfig baseConfig, AppConfig overlay)
     {
         // Deep merge logic - overlay takes precedence
-        // Implement recursive dictionary merging
-        // Lists should be combined without duplicates
-        // TODO: Implement deep merge algorithm
+        // This should recursively merge dictionaries and combine lists without duplicates
+        // 
+        // Pseudocode algorithm:
+        // 1. For each property in overlay:
+        //    - If it's a dictionary, recursively merge with base
+        //    - If it's a list, combine with base list (remove duplicates)
+        //    - Otherwise, overlay value takes precedence
+        // 2. For properties only in base, keep them
+        //
+        // Example implementation using reflection or JSON serialization:
+        // - Serialize both configs to JSON
+        // - Deserialize to JObject (Newtonsoft.Json) or JsonNode (System.Text.Json)
+        // - Perform deep merge on the JSON structure
+        // - Deserialize back to AppConfig
+        //
+        // For now, returning overlay as a placeholder
+        // A production implementation would need proper recursive merging
         return overlay;
     }
 }
@@ -511,9 +525,30 @@ public class CertificateManager
     
     private string NormalizeServerName(string serverName)
     {
-        // Implement TLD normalization logic
-        // Keep only one subdomain level
-        return serverName;
+        // Normalize server name to keep only one subdomain level
+        // This matches the Python implementation using tld library
+        //
+        // Algorithm:
+        // 1. Parse the domain to extract TLD, domain, and subdomain
+        // 2. If there's a subdomain, keep only the last component
+        // 3. Return format: [subdomain.]domain.tld
+        //
+        // Example: "www.en.wikipedia.org" -> "en.wikipedia.org"
+        // Example: "pixiv.net" -> "pixiv.net"
+        //
+        // You can use a library like 'Nager.PublicSuffix' NuGet package
+        // or implement custom logic based on the Public Suffix List
+        //
+        // Simple implementation without library:
+        var parts = serverName.Split('.');
+        if (parts.Length <= 2)
+        {
+            return serverName; // Already normalized (domain.tld)
+        }
+        
+        // Keep last 3 parts (subdomain.domain.tld)
+        // More sophisticated logic would check against TLD list
+        return string.Join(".", parts.Skip(parts.Length - 3));
     }
 }
 ```
@@ -729,9 +764,107 @@ public class ProxyServer
     
     private void VerifyCertificate(X509Certificate2 cert, string host, int port)
     {
-        // Implement custom certificate verification logic
-        // Check against cert_verify configuration
-        // Use pattern matching for hostname verification
+        // Custom certificate verification matching Python's cert_verify.py
+        //
+        // Algorithm:
+        // 1. Check if host matches any pattern in cert_verify configuration
+        // 2. If matched, get the verification list and policy
+        // 3. If policy is false, skip verification
+        // 4. Otherwise, verify the cert matches one of the allowed hostnames
+        //
+        // Pattern matching should support wildcards (using fnmatch logic)
+        // Hostname matching should check:
+        // - SubjectAlternativeName DNS entries
+        // - Subject CommonName (CN)
+        // - Support for wildcard certificates (*.example.com)
+        
+        // Get cert verify configuration for this host
+        string? certVerifyKey = null;
+        foreach (var pattern in _config.CertVerify.Keys)
+        {
+            if (MatchPattern(host, pattern))
+            {
+                certVerifyKey = pattern;
+                break;
+            }
+        }
+        
+        List<string> allowedHosts;
+        bool shouldVerify;
+        
+        if (certVerifyKey != null)
+        {
+            var verifyConfig = _config.CertVerify[certVerifyKey];
+            if (verifyConfig is bool boolValue)
+            {
+                shouldVerify = boolValue;
+                allowedHosts = new List<string> { host };
+            }
+            else
+            {
+                shouldVerify = true;
+                allowedHosts = (List<string>)verifyConfig;
+            }
+        }
+        else
+        {
+            // Check if host has altered hostname
+            var serverHostname = DetermineServerHostname(host);
+            if (!string.IsNullOrEmpty(serverHostname))
+            {
+                allowedHosts = new List<string> { serverHostname };
+                shouldVerify = _config.CheckHostname;
+            }
+            else
+            {
+                allowedHosts = new List<string> { host };
+                shouldVerify = _config.CheckHostname;
+            }
+        }
+        
+        if (!shouldVerify)
+        {
+            return; // Skip verification
+        }
+        
+        // Check if cert matches any allowed hostname
+        bool matched = false;
+        foreach (var allowedHost in allowedHosts)
+        {
+            if (CertificateMatchesHostname(cert, allowedHost))
+            {
+                matched = true;
+                break;
+            }
+        }
+        
+        if (!matched)
+        {
+            _logger.LogWarning($"[{port,5}] Certificate doesn't match any of: {string.Join(", ", allowedHosts)}");
+            throw new Exception("Certificate verification failed");
+        }
+    }
+    
+    private bool CertificateMatchesHostname(X509Certificate2 cert, string hostname)
+    {
+        // Check SubjectAlternativeName
+        foreach (var ext in cert.Extensions)
+        {
+            if (ext.Oid?.Value == "2.5.29.17") // SubjectAlternativeName OID
+            {
+                var san = new System.Security.Cryptography.AsnEncodedData(ext.Oid, ext.RawData);
+                var sanString = san.Format(false);
+                // Parse and match DNS names from SAN
+                // Support wildcard matching
+            }
+        }
+        
+        // Check Subject CN
+        var subjectCN = cert.Subject;
+        // Extract and match CN value
+        
+        // Implement wildcard matching (*.example.com matches www.example.com)
+        return false; // Placeholder
     }
 }
 ```
