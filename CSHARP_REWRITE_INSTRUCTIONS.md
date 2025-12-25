@@ -337,7 +337,7 @@ public class CertificateManager
     private readonly SemaphoreSlim _certLock;
     private X509Certificate2? _rootCert;
     private AsymmetricKeyParameter? _rootKey;
-    private ECKeyPairGenerator? _domainKeyGen;
+    private Org.BouncyCastle.X509.X509Certificate? _rootCertBC;
     private AsymmetricCipherKeyPair? _domainKeyPair;
     
     public CertificateManager(AppConfig config, ILogger logger)
@@ -362,14 +362,21 @@ public class CertificateManager
         }
         
         _rootCert = new X509Certificate2(rootCertPath);
-        _rootKey = LoadPrivateKey(rootKeyPath);
         
-        // Generate domain signing key (ECC P-256)
-        _domainKeyGen = new ECKeyPairGenerator("EC");
+        // Load root cert in BouncyCastle format for issuer name
+        var rootCertBytes = File.ReadAllBytes(rootCertPath);
+        _rootCertBC = new X509CertificateParser().ReadCertificate(rootCertBytes);
+        
+        // Load root private key
+        var rootKeyBytes = File.ReadAllBytes(rootKeyPath);
+        _rootKey = PrivateKeyFactory.CreateKey(rootKeyBytes);
+        
+        // Generate domain signing key (ECC P-256) - single key reused for all certificates
+        var keyGen = new ECKeyPairGenerator("EC");
         var curve = ECNamedCurveTable.GetByName("secp256r1");
         var domainParameters = new ECDomainParameters(curve.Curve, curve.G, curve.N, curve.H, curve.GetSeed());
-        _domainKeyGen.Init(new ECKeyGenerationParameters(domainParameters, new SecureRandom()));
-        _domainKeyPair = _domainKeyGen.GenerateKeyPair();
+        keyGen.Init(new ECKeyGenerationParameters(domainParameters, new SecureRandom()));
+        _domainKeyPair = keyGen.GenerateKeyPair();
         
         _logger.LogInformation("Certificate manager initialized");
     }
@@ -457,7 +464,7 @@ public class CertificateManager
         var subject = new X509Name("O=Accesser, CN=Accesser_Proxy");
         
         certGen.SetSubjectDN(subject);
-        certGen.SetIssuerDN(new X509Name(_rootCert!.Subject));
+        certGen.SetIssuerDN(_rootCertBC!.SubjectDN);
         certGen.SetSerialNumber(BigInteger.ProbablePrime(120, new Random()));
         certGen.SetNotBefore(DateTime.UtcNow.AddMinutes(-10));
         certGen.SetNotAfter(DateTime.UtcNow.AddDays(30));
