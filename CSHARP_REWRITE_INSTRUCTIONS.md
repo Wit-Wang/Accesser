@@ -47,6 +47,7 @@ accesser/
 <PackageReference Include="Tomlyn" Version="0.17.0" />
 <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
 <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+<PackageReference Include="Nager.PublicSuffix" Version="3.0.0" />
 ```
 
 ### Additional Platform-Specific Dependencies
@@ -302,22 +303,59 @@ public class ConfigurationManager
     {
         // Deep merge logic - overlay takes precedence
         // This should recursively merge dictionaries and combine lists without duplicates
+        //
+        // RECOMMENDED APPROACH: Use a JSON-based merge with System.Text.Json
         // 
-        // Pseudocode algorithm:
-        // 1. For each property in overlay:
-        //    - If it's a dictionary, recursively merge with base
-        //    - If it's a list, combine with base list (remove duplicates)
-        //    - Otherwise, overlay value takes precedence
-        // 2. For properties only in base, keep them
-        //
-        // Example implementation using reflection or JSON serialization:
-        // - Serialize both configs to JSON
-        // - Deserialize to JObject (Newtonsoft.Json) or JsonNode (System.Text.Json)
-        // - Perform deep merge on the JSON structure
-        // - Deserialize back to AppConfig
-        //
-        // For now, returning overlay as a placeholder
-        // A production implementation would need proper recursive merging
+        // Example implementation:
+        /*
+        using System.Text.Json;
+        using System.Text.Json.Nodes;
+        
+        var baseJson = JsonSerializer.Serialize(baseConfig);
+        var overlayJson = JsonSerializer.Serialize(overlay);
+        
+        var baseNode = JsonNode.Parse(baseJson)!.AsObject();
+        var overlayNode = JsonNode.Parse(overlayJson)!.AsObject();
+        
+        DeepMerge(baseNode, overlayNode);
+        
+        return JsonSerializer.Deserialize<AppConfig>(baseNode.ToJsonString())!;
+        
+        void DeepMerge(JsonObject target, JsonObject source)
+        {
+            foreach (var prop in source)
+            {
+                if (prop.Value is JsonObject sourceObj && 
+                    target[prop.Key] is JsonObject targetObj)
+                {
+                    DeepMerge(targetObj, sourceObj);
+                }
+                else if (prop.Value is JsonArray sourceArr && 
+                         target[prop.Key] is JsonArray targetArr)
+                {
+                    // Combine arrays without duplicates
+                    var combined = new JsonArray();
+                    var seen = new HashSet<string>();
+                    foreach (var item in targetArr.Concat(sourceArr))
+                    {
+                        var itemStr = item?.ToJsonString();
+                        if (itemStr != null && seen.Add(itemStr))
+                        {
+                            combined.Add(item?.DeepClone());
+                        }
+                    }
+                    target[prop.Key] = combined;
+                }
+                else
+                {
+                    target[prop.Key] = prop.Value?.DeepClone();
+                }
+            }
+        }
+        */
+        
+        // PLACEHOLDER: For this example, we return overlay
+        // Replace with the implementation above in production code
         return overlay;
     }
 }
@@ -528,18 +566,21 @@ public class CertificateManager
         // Normalize server name to keep only one subdomain level
         // This matches the Python implementation using tld library
         //
-        // Algorithm:
-        // 1. Parse the domain to extract TLD, domain, and subdomain
-        // 2. If there's a subdomain, keep only the last component
-        // 3. Return format: [subdomain.]domain.tld
+        // RECOMMENDED APPROACH: Use Nager.PublicSuffix NuGet package
+        // Add to project: <PackageReference Include="Nager.PublicSuffix" Version="3.0.0" />
         //
-        // Example: "www.en.wikipedia.org" -> "en.wikipedia.org"
-        // Example: "pixiv.net" -> "pixiv.net"
+        // Example with Nager.PublicSuffix:
+        // var domainParser = new DomainParser(new WebTldRuleProvider());
+        // var domainInfo = domainParser.Parse(serverName);
+        // if (domainInfo.SubDomain != null && domainInfo.SubDomain.Contains('.'))
+        // {
+        //     var subParts = domainInfo.SubDomain.Split('.');
+        //     return $"{subParts[^1]}.{domainInfo.Domain}.{domainInfo.TLD}";
+        // }
+        // return $"{domainInfo.Domain}.{domainInfo.TLD}";
         //
-        // You can use a library like 'Nager.PublicSuffix' NuGet package
-        // or implement custom logic based on the Public Suffix List
-        //
-        // Simple implementation without library:
+        // SIMPLE FALLBACK (not recommended for production):
+        // This simplified logic doesn't handle multi-level TLDs like .co.uk correctly
         var parts = serverName.Split('.');
         if (parts.Length <= 2)
         {
@@ -547,7 +588,7 @@ public class CertificateManager
         }
         
         // Keep last 3 parts (subdomain.domain.tld)
-        // More sophisticated logic would check against TLD list
+        // WARNING: This fails for domains like "www.example.co.uk"
         return string.Join(".", parts.Skip(parts.Length - 3));
     }
 }
@@ -847,24 +888,71 @@ public class ProxyServer
     
     private bool CertificateMatchesHostname(X509Certificate2 cert, string hostname)
     {
-        // Check SubjectAlternativeName
+        // Check SubjectAlternativeName for DNS entries
         foreach (var ext in cert.Extensions)
         {
             if (ext.Oid?.Value == "2.5.29.17") // SubjectAlternativeName OID
             {
-                var san = new System.Security.Cryptography.AsnEncodedData(ext.Oid, ext.RawData);
-                var sanString = san.Format(false);
-                // Parse and match DNS names from SAN
-                // Support wildcard matching
+                var asnData = new System.Security.Cryptography.AsnEncodedData(ext.Oid, ext.RawData);
+                var sanString = asnData.Format(false);
+                
+                // Parse SAN entries (format: "DNS Name=*.example.com")
+                var lines = sanString.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    if (line.StartsWith("DNS Name="))
+                    {
+                        var dnsName = line.Substring(9);
+                        if (MatchHostnameWithWildcard(hostname, dnsName))
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
         }
         
-        // Check Subject CN
-        var subjectCN = cert.Subject;
-        // Extract and match CN value
+        // Check Subject CN as fallback
+        var subjectParts = cert.Subject.Split(',');
+        foreach (var part in subjectParts)
+        {
+            var trimmed = part.Trim();
+            if (trimmed.StartsWith("CN="))
+            {
+                var cn = trimmed.Substring(3);
+                if (MatchHostnameWithWildcard(hostname, cn))
+                {
+                    return true;
+                }
+            }
+        }
         
-        // Implement wildcard matching (*.example.com matches www.example.com)
-        return false; // Placeholder
+        return false;
+    }
+    
+    private bool MatchHostnameWithWildcard(string hostname, string pattern)
+    {
+        // Support wildcard matching: *.example.com matches www.example.com
+        // But NOT sub.www.example.com (wildcard matches only one level)
+        
+        if (pattern == hostname)
+        {
+            return true;
+        }
+        
+        if (pattern.StartsWith("*."))
+        {
+            var domain = pattern.Substring(2);
+            // Match if hostname ends with domain and has exactly one more component
+            if (hostname.EndsWith("." + domain))
+            {
+                var prefix = hostname.Substring(0, hostname.Length - domain.Length - 1);
+                // Ensure prefix doesn't contain dots (only one level)
+                return !prefix.Contains('.');
+            }
+        }
+        
+        return false;
     }
 }
 ```
