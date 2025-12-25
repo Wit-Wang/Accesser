@@ -1091,12 +1091,12 @@ public class DnsResolver
                 // Additional DoT configuration
                 break;
             case "quic":
-                // DoQ (DNS over QUIC) support is experimental
-                // DnsClient library v1.7.0+ has DoQ support but may require additional configuration
-                // Consider using alternative DNS protocols (DoH/DoT) for better compatibility
-                _logger.LogWarning("DoQ support is experimental and may not work in all environments");
-                // Add DoQ implementation when DnsClient library stabilizes DoQ support
-                break;
+                // DoQ (DNS over QUIC) is not yet supported
+                // DnsClient library has experimental DoQ support but it's not stable
+                // For production use, recommend DoH or DoT instead
+                throw new NotSupportedException(
+                    "DNS over QUIC (DoQ) is not yet supported. " +
+                    "Please use DNS over HTTPS (https://) or DNS over TLS (tls://) instead.");
         }
     }
 }
