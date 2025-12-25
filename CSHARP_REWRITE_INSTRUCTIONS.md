@@ -354,8 +354,9 @@ public class ConfigurationManager
         }
         */
         
-        // PLACEHOLDER: For this example, we return overlay
-        // Replace with the implementation above in production code
+        // IMPORTANT: The placeholder below only returns overlay which loses base config!
+        // You MUST implement the JSON-based merge above for production use.
+        // Without proper merging, default configurations will be lost.
         return overlay;
     }
 }
@@ -448,7 +449,7 @@ public class CertificateManager
         
         certGen.SetSubjectDN(subject);
         certGen.SetIssuerDN(subject);
-        certGen.SetSerialNumber(BigInteger.ProbablePrime(120, new Random()));
+        certGen.SetSerialNumber(BigInteger.ProbablePrime(120, new SecureRandom()));
         certGen.SetNotBefore(DateTime.UtcNow);
         certGen.SetNotAfter(DateTime.UtcNow.AddYears(25));
         certGen.SetPublicKey(keyPair.Public);
@@ -517,7 +518,7 @@ public class CertificateManager
         
         certGen.SetSubjectDN(subject);
         certGen.SetIssuerDN(_rootCertBC!.SubjectDN);
-        certGen.SetSerialNumber(BigInteger.ProbablePrime(120, new Random()));
+        certGen.SetSerialNumber(BigInteger.ProbablePrime(120, new SecureRandom()));
         certGen.SetNotBefore(DateTime.UtcNow.AddMinutes(-10));
         certGen.SetNotAfter(DateTime.UtcNow.AddDays(30));
         certGen.SetPublicKey(_domainKeyPair!.Public);
@@ -579,8 +580,10 @@ public class CertificateManager
         // }
         // return $"{domainInfo.Domain}.{domainInfo.TLD}";
         //
-        // SIMPLE FALLBACK (not recommended for production):
-        // This simplified logic doesn't handle multi-level TLDs like .co.uk correctly
+        // WARNING: The fallback below is INSECURE for production use!
+        // It doesn't handle multi-level TLDs correctly and may cause certificate issues.
+        // Example failures: "example.co.uk", "example.github.io"
+        // You MUST use Nager.PublicSuffix or similar library for production.
         var parts = serverName.Split('.');
         if (parts.Length <= 2)
         {
@@ -1088,8 +1091,11 @@ public class DnsResolver
                 // Additional DoT configuration
                 break;
             case "quic":
-                // Configure DoQ (may require additional libraries)
-                _logger.LogWarning("DoQ support requires additional implementation");
+                // DoQ (DNS over QUIC) support is experimental
+                // DnsClient library v1.7.0+ has DoQ support but may require additional configuration
+                // Consider using alternative DNS protocols (DoH/DoT) for better compatibility
+                _logger.LogWarning("DoQ support is experimental and may not work in all environments");
+                // Add DoQ implementation when DnsClient library stabilizes DoQ support
                 break;
         }
     }
