@@ -337,7 +337,8 @@ public class CertificateManager
     private readonly SemaphoreSlim _certLock;
     private X509Certificate2? _rootCert;
     private AsymmetricKeyParameter? _rootKey;
-    private AsymmetricKeyParameter? _domainKey;
+    private ECKeyPairGenerator? _domainKeyGen;
+    private AsymmetricCipherKeyPair? _domainKeyPair;
     
     public CertificateManager(AppConfig config, ILogger logger)
     {
@@ -364,12 +365,11 @@ public class CertificateManager
         _rootKey = LoadPrivateKey(rootKeyPath);
         
         // Generate domain signing key (ECC P-256)
-        var keyGen = new ECKeyPairGenerator("EC");
-        keyGen.Init(new ECKeyGenerationParameters(
-            SecNamedCurves.GetOid("secp256r1"),
-            new SecureRandom()));
-        var keyPair = keyGen.GenerateKeyPair();
-        _domainKey = keyPair.Private;
+        _domainKeyGen = new ECKeyPairGenerator("EC");
+        var curve = ECNamedCurveTable.GetByName("secp256r1");
+        var domainParameters = new ECDomainParameters(curve.Curve, curve.G, curve.N, curve.H, curve.GetSeed());
+        _domainKeyGen.Init(new ECKeyGenerationParameters(domainParameters, new SecureRandom()));
+        _domainKeyPair = _domainKeyGen.GenerateKeyPair();
         
         _logger.LogInformation("Certificate manager initialized");
     }
@@ -457,11 +457,11 @@ public class CertificateManager
         var subject = new X509Name("O=Accesser, CN=Accesser_Proxy");
         
         certGen.SetSubjectDN(subject);
-        certGen.SetIssuerDN(_rootCert!.SubjectName);
+        certGen.SetIssuerDN(new X509Name(_rootCert!.Subject));
         certGen.SetSerialNumber(BigInteger.ProbablePrime(120, new Random()));
         certGen.SetNotBefore(DateTime.UtcNow.AddMinutes(-10));
         certGen.SetNotAfter(DateTime.UtcNow.AddDays(30));
-        certGen.SetPublicKey(_domainKey!);
+        certGen.SetPublicKey(_domainKeyPair!.Public);
         
         // Add Subject Alternative Name
         var altNames = new GeneralNames(new[]
@@ -492,7 +492,7 @@ public class CertificateManager
         
         // Save to file
         var certBytes = cert.GetEncoded();
-        var keyInfo = PrivateKeyInfoFactory.CreatePrivateKeyInfo(_domainKey);
+        var keyInfo = PrivateKeyInfoFactory.CreatePrivateKeyInfo(_domainKeyPair!.Private);
         var combined = certBytes.Concat(keyInfo.GetEncoded()).ToArray();
         
         File.WriteAllBytes(
@@ -808,9 +808,23 @@ public class DnsResolver
                 response = await _client.QueryAsync(domain, QueryType.A);
             }
             
-            var result = response.Answers.FirstOrDefault()?.ToString();
-            if (result != null)
+            var answer = response.Answers.FirstOrDefault();
+            if (answer != null)
             {
+                string result;
+                if (answer is ARecord aRecord)
+                {
+                    result = aRecord.Address.ToString();
+                }
+                else if (answer is AaaaRecord aaaaRecord)
+                {
+                    result = aaaaRecord.Address.ToString();
+                }
+                else
+                {
+                    throw new Exception($"Unexpected DNS record type: {answer.GetType()}");
+                }
+                
                 _cache[domain] = result;
                 return result;
             }
