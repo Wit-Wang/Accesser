@@ -8,7 +8,7 @@
       "version": "1.0.0",
       "restore": {
         "projectUniqueName": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/src/Accesser/Accesser.csproj",
-        "projectName": "Accesser",
+        "projectName": "accesser",
         "projectPath": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/src/Accesser/Accesser.csproj",
         "packagesPath": "/home/runner/.nuget/packages/",
         "outputPath": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/src/Accesser/obj/",
@@ -45,6 +45,28 @@
         "net8.0": {
           "framework": "net8.0",
           "targetAlias": "net8.0",
+          "dependencies": {
+            "DnsClient": {
+              "target": "Package",
+              "version": "[1.7.0, )"
+            },
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Console": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Nager.PublicSuffix": {
+              "target": "Package",
+              "version": "[3.0.0, )"
+            },
+            "Tomlyn": {
+              "target": "Package",
+              "version": "[0.17.0, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",

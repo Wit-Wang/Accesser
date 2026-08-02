@@ -139,7 +139,7 @@ public static class ConfigurationManager
                     var itemString = item?.ToJsonString();
                     if (itemString != null && seen.Add(itemString))
                     {
-                        combined.Add(item.DeepClone());
+                        combined.Add(item is null ? null : item.DeepClone());
                     }
                 }
 

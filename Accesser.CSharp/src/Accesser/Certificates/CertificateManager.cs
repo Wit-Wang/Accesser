@@ -1,7 +1,5 @@
 using Accesser.Configuration;
 using Microsoft.Extensions.Logging;
-using Nager.PublicSuffix;
-using Nager.PublicSuffix.RuleProviders;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -16,8 +14,6 @@ public class CertificateManager
     private readonly SemaphoreSlim _certLock = new(1, 1);
     private X509Certificate2? _rootCert;
     private RSA? _rootRsa;
-    private readonly DomainParser _domainParser = new(new WebTldRuleProvider());
-
     public string RootCertificatePath => Path.Combine(_certPath, "root.crt");
 
     public CertificateManager(AppConfig config, ILogger logger)
@@ -116,7 +112,6 @@ public class CertificateManager
                 new Oid("1.3.6.1.5.5.7.3.2")
             ],
             true));
-        request.CertificateExtensions.Add(new X509AuthorityKeyIdentifierExtension(_rootCert, false, false));
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
 
         var serial = RandomNumberGenerator.GetBytes(16);
@@ -139,27 +134,12 @@ public class CertificateManager
 
     private string NormalizeServerName(string serverName)
     {
-        try
+        var parts = serverName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length <= 2)
         {
-            var parsed = _domainParser.Parse(serverName);
-            if (!string.IsNullOrEmpty(parsed.SubDomain) && parsed.SubDomain.Contains('.'))
-            {
-                var pieces = parsed.SubDomain.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                return $"{pieces[^1]}.{parsed.Domain}.{parsed.TLD}";
-            }
-
-            return $"{parsed.Domain}.{parsed.TLD}";
+            return serverName;
         }
-        catch
-        {
-            var parts = serverName.Split('.', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length <= 2)
-            {
-                return serverName;
-            }
-
-            return string.Join('.', parts.Skip(parts.Length - 3));
-        }
+        return string.Join('.', parts.Skip(parts.Length - 3));
     }
 
     private static string DetermineCertPath(AppConfig config)
