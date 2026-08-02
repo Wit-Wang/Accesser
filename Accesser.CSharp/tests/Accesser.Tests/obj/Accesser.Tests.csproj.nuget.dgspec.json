@@ -10,7 +10,7 @@
         "projectUniqueName": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/src/Accesser/Accesser.csproj",
         "projectName": "accesser",
         "projectPath": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/src/Accesser/Accesser.csproj",
-        "packagesPath": "/home/runner/.nuget/packages/",
+        "packagesPath": "/tmp/codeql-scratch-7745d08aa100c6c3/dbs/csharp/working/packages",
         "outputPath": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/src/Accesser/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
@@ -78,6 +78,20 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[8.0.29, 8.0.29]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.linux-x64",
+              "version": "[8.0.29, 8.0.29]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[8.0.29, 8.0.29]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
@@ -93,7 +107,7 @@
         "projectUniqueName": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/tests/Accesser.Tests/Accesser.Tests.csproj",
         "projectName": "Accesser.Tests",
         "projectPath": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/tests/Accesser.Tests/Accesser.Tests.csproj",
-        "packagesPath": "/home/runner/.nuget/packages/",
+        "packagesPath": "/tmp/codeql-scratch-7745d08aa100c6c3/dbs/csharp/working/packages",
         "outputPath": "/home/runner/work/Accesser/Accesser/Accesser.CSharp/tests/Accesser.Tests/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
@@ -161,6 +175,16 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[8.0.29, 8.0.29]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[8.0.29, 8.0.29]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
